@@ -1,5 +1,4 @@
 
-# **README - Proiect IoT: Monitorizarea Temperaturii**
 
 ## **Descriere**
 Acest proiect reprezinta un sistem IoT dezvoltat in mediul de simulare Wokwi, care permite monitorizarea temperaturii pentru o locatie specificata. Utilizatorul selecteaza coordonatele geografice (latitudine si longitudine) printr-o aplicatie web cu o harta interactiva, iar un server ESP32 simulat returneaza temperatura curenta din locatie, utilizand API-ul Open Meteo.
