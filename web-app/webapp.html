@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Weather Station</title>
+</head>
+<body>
+    <h1>IoT Weather Station</h1>
+    <form id="weatherForm">
+        <label for="latitude">Latitude:</label>
+        <input type="text" id="latitude" name="latitude" placeholder="Enter Latitude" required>
+        <br><br>
+        <label for="longitude">Longitude:</label>
+        <input type="text" id="longitude" name="longitude" placeholder="Enter Longitude" required>
+        <br><br>
+        <button type="submit">Get Temperature</button>
+    </form>
+
+    <p id="result"></p>
+
+    <script>
+        document.getElementById('weatherForm').addEventListener('submit', async (event) => {
+            event.preventDefault(); // Prevent form from reloading the page
+
+            const latitude = document.getElementById('latitude').value.trim();
+            const longitude = document.getElementById('longitude').value.trim();
+
+            if (!latitude || !longitude) {
+                document.getElementById('result').textContent = "Please enter valid latitude and longitude.";
+                return;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // Set timeout to 15 seconds
+
+            try {
+                const response = await fetch(`http://localhost:9080/?latitude=${latitude}&longitude=${longitude}`, {
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('result').textContent = `Temperature: ${data.temperature}°C`;
+                } else {
+                    const errorText = await response.text();
+                    document.getElementById('result').textContent = `Error: ${errorText}`;
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    document.getElementById('result').textContent = "Request timed out. Please try again.";
+                } else {
+                    document.getElementById('result').textContent = "Failed to connect to the server.";
+                }
+                console.error("Error:", error);
+            }
+        });
+    </script>
+</body>
+</html>
