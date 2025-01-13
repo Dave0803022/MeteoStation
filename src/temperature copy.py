@@ -13,8 +13,8 @@ PASSWORD = ""
 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
-EMAIL_ADDRESS = "your_email@gmail.com"     # Contul Gmail
-EMAIL_PASSWORD = "your_generated_password"        # Parola de aplicație generată (exemplu)
+EMAIL_ADDRESS = "david.anghel1@gmail.com"     # Contul Gmail
+EMAIL_PASSWORD = "rmcb oolt pbms cotv"        # Parola de aplicație generată (exemplu)
 # ----------
 
 # AES Key & IV (16 bytes) la fel ca în webapp

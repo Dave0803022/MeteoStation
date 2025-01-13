@@ -1,61 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Weather Station</title>
+  <meta charset="UTF-8">
+  <title>IoT Weather Station + Optional Email Alerts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS/JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <!-- CryptoJS pentru AES (CBC) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
-    <h1>IoT Weather Station</h1>
-    <form id="weatherForm">
-        <label for="latitude">Latitude:</label>
-        <input type="text" id="latitude" name="latitude" placeholder="Enter Latitude" required>
-        <br><br>
-        <label for="longitude">Longitude:</label>
-        <input type="text" id="longitude" name="longitude" placeholder="Enter Longitude" required>
-        <br><br>
-        <button type="submit">Get Temperature</button>
-    </form>
+  <h1>IoT Weather Station (AES + Optional Email Alerts)</h1>
 
-    <p id="result"></p>
+  <form id="weatherForm">
+    <label for="alertCheckbox">Enable Email Alerts:</label>
+    <input type="checkbox" id="alertCheckbox" name="alertCheckbox">
+    <br><br>
 
-    <script>
-        document.getElementById('weatherForm').addEventListener('submit', async (event) => {
-            event.preventDefault(); // Prevent form from reloading the page
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" placeholder="you@example.com">
+    <br><br>
 
-            const latitude = document.getElementById('latitude').value.trim();
-            const longitude = document.getElementById('longitude').value.trim();
+    <label for="threshold">Threshold (°C):</label>
+    <input type="number" id="threshold" name="threshold" placeholder="Enter threshold (optional)">
+    <br><br>
 
-            if (!latitude || !longitude) {
-                document.getElementById('result').textContent = "Please enter valid latitude and longitude.";
-                return;
-            }
+    <label for="latitude">Latitude (required):</label>
+    <input type="text" id="latitude" name="latitude" placeholder="Enter Latitude" required>
+    <br><br>
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // Set timeout to 15 seconds
+    <label for="longitude">Longitude (required):</label>
+    <input type="text" id="longitude" name="longitude" placeholder="Enter Longitude" required>
+    <br><br>
 
-            try {
-                const response = await fetch(`http://localhost:9080/?latitude=${latitude}&longitude=${longitude}`, {
-                    signal: controller.signal,
-                });
-                clearTimeout(timeoutId);
+    <button type="submit">Get Temperature</button>
+  </form>
 
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('result').textContent = `Temperature: ${data.temperature}°C`;
-                } else {
-                    const errorText = await response.text();
-                    document.getElementById('result').textContent = `Error: ${errorText}`;
-                }
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    document.getElementById('result').textContent = "Request timed out. Please try again.";
-                } else {
-                    document.getElementById('result').textContent = "Failed to connect to the server.";
-                }
-                console.error("Error:", error);
-            }
-        });
-    </script>
+  <p id="result"></p>
+
+  <div id="map" style="height: 500px; width: 100%; margin-top: 20px;"></div>
+
+  <script>
+    // Inițializare harta Leaflet
+    const map = L.map('map').setView([51.505, -0.09], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = L.marker([51.505, -0.09], { draggable: true }).addTo(map);
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      marker.setLatLng([lat, lng]);
+      document.getElementById('latitude').value = lat.toFixed(6);
+      document.getElementById('longitude').value = lng.toFixed(6);
+    });
+
+    // AES KEY/IV - la fel ca în MicroPython
+    const AES_KEY  = CryptoJS.enc.Utf8.parse("0123456789ABCDEF");
+    const AES_IV   = CryptoJS.enc.Utf8.parse("0123456789ABCDEF");
+
+    function encryptAES(plaintext) {
+      const encrypted = CryptoJS.AES.encrypt(
+        plaintext,
+        AES_KEY,
+        {
+          iv: AES_IV,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      return encrypted.toString(); // base64
+    }
+
+    function decryptAES(base64Ciphertext) {
+      const decrypted = CryptoJS.AES.decrypt(
+        base64Ciphertext,
+        AES_KEY,
+        {
+          iv: AES_IV,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      return decrypted.toString(CryptoJS.enc.Utf8);
+    }
+
+    document.getElementById('weatherForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const alertEnabled = document.getElementById('alertCheckbox').checked;
+
+      // Citim email / threshold doar dacă alertEnabled e true
+      let email = document.getElementById('email').value.trim();
+      let thresholdVal = document.getElementById('threshold').value.trim();
+
+      // Dacă nu e bifat, ignorăm email/threshold (trimitem ca none / 0)
+      if (!alertEnabled) {
+        email = null;
+        thresholdVal = "0";
+      }
+
+      const latitude = document.getElementById('latitude').value.trim();
+      const longitude = document.getElementById('longitude').value.trim();
+
+      if (!latitude || !longitude) {
+        document.getElementById('result').textContent = "Please provide valid latitude and longitude.";
+        return;
+      }
+
+      let threshold = 0;
+      if (alertEnabled) {
+        // Permitem threshold numeric sau default 0
+        threshold = parseFloat(thresholdVal) || 0;
+      }
+
+      // Construim payload
+      const payloadObj = {
+        email: email,               // poate fi null/"" dacă userul nu vrea email
+        threshold: threshold,       // numeric
+        alertEnabled: alertEnabled, // bool
+        latitude: latitude,         // string
+        longitude: longitude        // string
+      };
+
+      const payloadJSON = JSON.stringify(payloadObj);
+      const encryptedPayload = encryptAES(payloadJSON);
+
+      try {
+        // Notă: serverul ascultă pe 80 în codul tău,
+        // dar afișează "Server running on http://localhost:9080"
+        const url = `http://localhost:9080/?data=${encodeURIComponent(encryptedPayload)}`;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          document.getElementById('result').textContent = `Error: ${errorText}`;
+          return;
+        }
+
+        // Răspunsul e un JSON: {"data":"...base64..."}
+        const respJson = await response.json();
+        const decrypted = decryptAES(respJson.data);
+
+        // ex: {"temperature":25.4,"emailSent":false}
+        const resultObj = JSON.parse(decrypted);
+        const { temperature, emailSent } = resultObj;
+
+        let msg = `Temperature: ${temperature}°C. `;
+        if (alertEnabled) {
+          if (emailSent) {
+            msg += "Email alert SENT.";
+          } else {
+            msg += "Email alert NOT sent (threshold not crossed or error).";
+          }
+        } else {
+          msg += "(No email alert requested.)";
+        }
+
+        document.getElementById('result').textContent = msg;
+
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById('result').textContent = "Failed to connect to the server.";
+      }
+    });
+  </script>
 </body>
 </html>

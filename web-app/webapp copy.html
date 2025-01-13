@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IoT Weather Station</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS/JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <!-- CryptoJS pentru AES -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+  <h1>IoT Weather Station (AES Encryption)</h1>
+  
+  <form id="weatherForm">
+    <label for="latitude">Latitude:</label>
+    <input type="text" id="latitude" name="latitude" placeholder="Enter Latitude" required>
+    <br><br>
+    <label for="longitude">Longitude:</label>
+    <input type="text" id="longitude" name="longitude" placeholder="Enter Longitude" required>
+    <br><br>
+    <button type="submit">Get Temperature</button>
+  </form>
+
+  <p id="result"></p>
+
+  <div id="map" style="height: 500px; width: 100%; margin-top: 20px;"></div>
+
+  <script>
+    // 1) Inițializare hartă Leaflet
+    const map = L.map('map').setView([51.505, -0.09], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let selectedCoords = { lat: 51.505, lng: -0.09 };
+    let marker = L.marker([selectedCoords.lat, selectedCoords.lng], { draggable: true }).addTo(map);
+
+    // Actualizare coordonate la click pe hartă
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      marker.setLatLng([lat, lng]);
+      selectedCoords = { lat, lng };
+      document.getElementById('latitude').value = lat.toFixed(6);
+      document.getElementById('longitude').value = lng.toFixed(6);
+    });
+
+    // 2) Configurare cheie și IV AES (16 bytes fiecare, pentru AES-128)
+    const AES_KEY = CryptoJS.enc.Utf8.parse("0123456789ABCDEF");
+    const AES_IV  = CryptoJS.enc.Utf8.parse("0123456789ABCDEF");
+
+    // Funcție de criptare AES (CBC, PKCS7)
+    function encryptAES(plaintext) {
+      const encrypted = CryptoJS.AES.encrypt(
+        plaintext,
+        AES_KEY,
+        {
+          iv: AES_IV,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      return encrypted.toString(); // base64
+    }
+
+    // Funcție de decriptare AES
+    function decryptAES(base64Ciphertext) {
+      const decrypted = CryptoJS.AES.decrypt(
+        base64Ciphertext,
+        AES_KEY,
+        {
+          iv: AES_IV,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      return decrypted.toString(CryptoJS.enc.Utf8);
+    }
+
+    // 3) La submit, criptăm parametrii și trimitem ?data=...
+    document.getElementById('weatherForm').addEventListener('submit', async (event) => {
+      event.preventDefault(); // Nu reîncărca pagina
+
+      const latitude = document.getElementById('latitude').value.trim();
+      const longitude = document.getElementById('longitude').value.trim();
+
+      if (!latitude || !longitude) {
+        document.getElementById('result').textContent = "Please enter valid latitude and longitude.";
+        return;
+      }
+
+      // Construim un obiect JSON cu lat/long
+      const payload = JSON.stringify({ latitude, longitude });
+
+      // Criptăm obiectul JSON -> base64
+      const encryptedPayload = encryptAES(payload);
+
+      try {
+        // Trimitem la server (portul 9080, parametru data=...)
+        // Asigură-te că MicroPython ascultă pe portul 9080
+        const response = await fetch(`http://localhost:9080/?data=${encodeURIComponent(encryptedPayload)}`, {
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          // Dacă nu e 200 OK
+          const errorText = await response.text();
+          document.getElementById('result').textContent = `Error: ${errorText}`;
+          return;
+        }
+
+        // Serverul răspunde cu JSON de forma: {"data": "base64..."}
+        const respJson = await response.json();
+
+        // Decriptăm ce e în respJson.data
+        const decrypted = decryptAES(respJson.data);
+        // decrypted e un JSON text: ex. {"temperature": 12.34}
+        const resultObj = JSON.parse(decrypted);
+
+        // Afișăm temperatura
+        document.getElementById('result').textContent = `Temperature: ${resultObj.temperature}°C`;
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById('result').textContent = "Failed to connect to the server.";
+      }
+    });
+  </script>
+</body>
+</html>
