@@ -1,4 +1,5 @@
 
+# **README - Proiect IoT: Monitorizarea Temperaturii**
 
 ## **Descriere**
 Acest proiect reprezinta un sistem IoT dezvoltat in mediul de simulare Wokwi, care permite monitorizarea temperaturii pentru o locatie specificata. Utilizatorul selecteaza coordonatele geografice (latitudine si longitudine) printr-o aplicatie web cu o harta interactiva, iar un server ESP32 simulat returneaza temperatura curenta din locatie, utilizand API-ul Open Meteo.
@@ -43,15 +44,16 @@ Pentru a rula proiectul, sunt necesare urmatoarele:
 
 ---
 
-### **3. Rularea proiectului**
-1. In aplicatia web:
-   - Introdu manual coordonatele geografice (latitudine si longitudine) **sau** selecteaza o locatie direct pe harta interactiva.
-   - Apasa butonul **Get Temperature** pentru a trimite o cerere catre serverul ESP32.
-2. Verifica rezultatul afisat in aplicatia web. Daca serverul functioneaza corect, temperatura curenta pentru locatia specificata va fi afisata:
-   ```
-   Temperature: 25.5°C
-   ```
-3. In caz de erori, verifica consola simulatorului Wokwi pentru a vedea logurile serverului.
+## **3. Rularea proiectului**
+
+1. În aplicația web:
+   - Selectează o locație pe harta interactivă sau introdu manual coordonatele geografice (latitudine și longitudine) în câmpurile dedicate.
+   - Apasă butonul **Get Temperature** pentru a trimite o cerere către serverul ESP32.
+2. Serverul ESP32 va procesa coordonatele și va trimite o cerere către API-ul Open Meteo pentru a obține temperatura curentă.
+3. Temperatura curentă va fi afișată în aplicația web într-un format ușor de citit, de exemplu:  
+   **Temperature: 25.5°C.**
+4. Dacă opțiunea de alertă prin email este activată și temperatura depășește pragul setat, serverul va trimite automat o notificare prin email.
+5. În caz de erori, verifică consola simulatorului Wokwi pentru a vedea logurile serverului și a depana problemele.
 
 ---
 
@@ -74,6 +76,9 @@ Pentru a rula proiectul, sunt necesare urmatoarele:
    - Verifica conexiunea la internet.
    - Creste timeout-ul in codul aplicatiei web daca raspunsurile de la API-ul Open Meteo sunt intarziate.
 
+4. **Eroare la trimiterea e-mail-ului:**
+   - Asigura-te ca adresa de e-mail specificata in aplicatie este valida si corect formata.
+   - Verifica setarile de securitate ale contului de e-mail pentru a permite trimiterea de e-mail-uri din aplicatia web.
 ---
 
 ## **Licenta**
